@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-amber-50;
+}
+
+/* Pixel horse animation */
+.pixel-horse {
+  font-size: 24px;
+  animation: gallop 0.5s ease-in-out infinite;
+}
+
+@keyframes gallop {
+  0%, 100% {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-55%) rotate(-5deg);
+  }
+}
+
+/* Race track styles */
+.race-track {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #f3f4f6,
+    #f3f4f6 10px,
+    #e5e7eb 10px,
+    #e5e7eb 20px
+  );
+}
+
+/* Button hover effects */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Card shadow effects */
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 
+              0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Progress bar animation */
+@keyframes progress {
+  from {
+    width: 0%;
+  }
+}
+
+.animate-progress {
+  animation: progress 0.5s ease-out;
+}

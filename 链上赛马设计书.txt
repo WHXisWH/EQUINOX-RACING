@@ -1,0 +1,234 @@
+新一代区块链赛马游戏设计书 (Project: Equinox)
+1. 项目愿景与核心支柱
+项目愿景: 我们要创造的不是另一个赛马博彩模拟器，而是一个有生命、有策略、由玩家驱动的赛马元宇宙。玩家与他们的马匹 NFT 之间将建立深度的情感连接，每一匹马都是独一无二、有故事的伙伴。
+
+三大核心支柱:
+
+有生命的 NFT (Living NFTs): 马匹不再是静态的数据，而是拥有“风土”灵魂、动态性格与情绪的生命体。
+
+深度策略玩法 (Deep Strategy): 比赛的胜负由基因、环境、训练、策略和一点点运气共同决定，打破纯数值碾压。
+
+玩家驱动经济 (Player-Driven Economy): 将世界的创造权和治理权下放给玩家，构建一个充满活力的 SocialFi 生态。
+
+2. 核心系统设计：有生命的马匹 NFT
+这是整个游戏的基石。我们将通过多层属性来构建一个“活”的马匹 NFT。
+
+2.1. 核心属性 (The DNA)
+这些是马匹出生时就确定的永久属性。
+
+HorseID: u64, 唯一的 NFT 标识。
+
+Genotype: String, 代表基因序列，影响基础速度、耐力、爆发力等潜力上限。
+
+Bloodline: Enum {Zan, Sar, Nak}, 代表远古血统，提供微小的基础加成和外观特征。
+
+Gender: Enum {Male, Female}, 用于繁殖。
+
+2.2. “风土”系统 (The Soul)
+创新核心: 马匹的灵魂属性，永久绑定，深刻影响其能力。
+
+OriginRegion: Enum, 马匹被捕捉时的地理区域。
+
+风土效果示例:
+
+捕捉区域 (OriginRegion)
+
+区域特征
+
+属性加成
+
+赛道/天气偏好
+
+高山 (Alpine Peaks)
+
+空气稀薄，地势崎岖
+
++耐力, -冲刺速度
+
+擅长长距离、上坡赛道
+
+平原 (Coastal Plains)
+
+地势平坦，天气多变
+
++冲刺速度, -敏捷
+
+擅长直线、潮湿赛道
+
+森林 (Verdant Forest)
+
+树木繁茂，路径复杂
+
++敏捷, -胆量
+
+擅长弯道、复杂赛道
+
+沙漠 (Scorched Sands)
+
+干燥炎热，温差大
+
++韧性, -恢复速度
+
+擅长晴天、干燥赛道
+
+火山 (Volcanic Ridge)
+
+地热丰富，环境恶劣
+
++爆发力, -稳定性
+
+状态起伏大，可能创造奇迹
+
+2.3. 动态状态 (The Mood)
+这些是可变的状态，受训练、比赛、道具和玩家互动影响。
+
+Personality: Enum {Brave, Timid, Lazy, Competitive}, 出生时随机赋予的永久性格。
+
+Brave: 落后时有几率触发“不屈”状态，小幅提升全能力，但容易过度消耗体力。
+
+Timid: 被近身超越时，有几率陷入“紧张”状态，小幅降低速度。
+
+Lazy: 需要特定的激励道具或训练方法才能达到最佳状态。
+
+Competitive: 周围有其他马匹时，获得微小的速度加成。
+
+Emotion: Enum {Excited, Calm, Anxious, Tired}, 动态变化的情绪值。直接影响比赛中的状态发挥。
+
+Stamina: u64, 当前体力值。比赛和训练会消耗，需要休息恢复。
+
+2.4. 繁殖系统 (Breeding)
+基因遗传: 子代的核心属性 (Genotype, Bloodline) 由父母双方的基因组合决定，存在一定的变异几率。
+
+风土烙印: 子代的 OriginRegion 将由母亲的 OriginRegion 决定，代表了它在哪里出生和成长。这使得特定风土的母马变得极具价值。
+
+性格继承: 子代的 Personality 有 70% 的几率继承自父母中的一方，30% 的几率随机产生新性格。
+
+3. 核心玩法与策略循环
+3.1. 探索与捕捉
+游戏世界是一张巨大的地图，划分为不同的风土区域。
+
+野生的马匹会周期性地在地图上刷新，玩家需要消耗道具和时间去探索和“捕捉”。
+
+捕捉到的马匹将作为新的 NFT 铸造到玩家钱包。
+
+3.2. 策略性训练
+技能点 (SP): 马匹每次升级会获得技能点，玩家可以自由分配到 速度、耐力、爆发力、敏捷、韧性 五大项上。
+
+赛道记忆 (Track Memory):
+
+每条赛道都有独立的熟练度 (Familiarity)。
+
+马匹在同一赛道上训练或比赛的次数越多，熟练度越高。
+
+高熟练度会解锁被动技能，如“弯道大师”（过弯时体力消耗减少）、“起跑直觉”（起跑反应加快）等。
+
+3.3. 比赛机制
+一场比赛的胜负由以下因素综合决定：
+
+马匹硬实力: 核心属性 + 技能点分配。
+
+风土与赛道匹配度: OriginRegion 是否契合当前赛道和天气。
+
+动态状态: 马匹的 Emotion 和 Stamina 是否处于最佳状态。
+
+赛道记忆: 对当前赛道的 Familiarity 等级。
+
+玩家策略: 赛前装备的选择、赛中消耗品（策略卡）的使用时机。
+
+随机因素: 天气突变、小概率的意外事件（如马失前蹄）。
+
+3.4. 装备与消耗品
+装备 NFT: 可穿戴，提供属性加成或特殊效果。
+
+蹄铁: 影响对不同场地（草地/泥地）的适应性。
+
+马鞍: 影响体力消耗速度。
+
+眼罩: 影响马匹的集中度，对抗 Timid 性格的负面效果。
+
+消耗品 (SFT/Token):
+
+食物: 赛前使用，短暂改变 Emotion 或恢复 Stamina。
+
+策略卡: 比赛中由玩家（或预设AI）在特定时刻使用，如“保留实力”、“最终冲刺”。
+
+4. 玩家驱动的经济与 SocialFi
+4.1. 俱乐部 (DAO)
+玩家可以消耗代币创建俱乐部，成员共同发展。
+
+俱乐部可以参与更高级别的赛事，解锁专属的团队任务和奖励。
+
+4.2. 土地与赛道 NFT
+土地 NFT: 游戏世界中的地块，是最高价值的资产之一。
+
+赛道建设: 俱乐部或富有的个人可以在自己的土地上建造赛道。
+
+赛事举办: 赛道所有者可以自定义比赛的报名费、奖池、规则，并从每场比赛中抽取一定比例的佣金，成为赛事主办方。
+
+4.3. 职业路径
+玩家可以专注于特定领域，服务其他玩家并获得收益。
+
+育马师 (Breeder): 拥有高品质母马和基因知识的玩家，可以提供有偿的繁殖服务。
+
+训练师 (Trainer): 拥有高等级训练设施（也是一种 NFT）的玩家，可以帮助其他玩家训练马匹，并根据训练效果收费。
+
+分析师 (Analyst): 通过链上数据分析，为其他玩家提供比赛预测、马匹评估等情报服务。
+
+5. 技术实现草案 (Aptos Move)
+5.1. 核心数据结构 (Structs)
+// file: sources/equinox.move
+module your_addr::equinox {
+
+    struct HorseNFT has key, store {
+        id: u64,
+        name: string::String,
+        
+        // --- Core Attributes ---
+        genotype: vector<u8>,
+        bloodline: u8, // 0: Zan, 1: Sar, 2: Nak
+        gender: u8, // 0: Male, 1: Female
+
+        // --- Soul Attributes ---
+        origin_region: u8, // 0: Alpine, 1: Coastal, etc.
+        personality: u8, // 0: Brave, 1: Timid, etc.
+
+        // --- Dynamic States ---
+        emotion: u8,
+        stamina: u64,
+        
+        // --- Stats & Training ---
+        level: u64,
+        stats: Stats, // Struct for speed, endurance, etc.
+        track_memory: vector<TrackFamiliarity>, // vector of {track_id, familiarity_score}
+
+        // --- Equipment ---
+        equipped_gear: vector<u64>, // vector of item NFT IDs
+    }
+
+    struct GameData has key {
+        // 全局游戏状态，如总马匹数量，活跃玩家等
+        total_horses: u64,
+        land_plots: vector<LandPlot>,
+    }
+
+    struct PlayerProfile has key {
+        // 玩家档案，记录其拥有的马匹、俱乐部、职业等
+        owner: address,
+        owned_horses: vector<u64>,
+        club_id: u64,
+        career: u8, // 0: None, 1: Breeder, etc.
+    }
+}
+
+5.2. 核心入口函数 (Entry Functions)
+public entry fun capture_horse(player: &signer, location_id: u64): 在指定地点捕捉野马。
+
+public entry fun start_race(player: &signer, horse_id: u64, track_id: u64, gear_ids: vector<u64>): 报名参加比赛。
+
+public entry fun breed_horses(player: &signer, sire_id: u64, dam_id: u64): 繁殖两匹马。
+
+public entry fun train_horse(player: &signer, horse_id: u64, stat_to_train: u8): 训练马匹，分配技能点。
+
+public entry fun create_club(player: &signer, club_name: string::String): 创建俱乐部。
+
+public entry fun build_track(player: &signer, land_id: u64, track_type: u8): 在自己的土地上建造赛道。
