@@ -52,6 +52,17 @@ export interface RaceState {
   total_bet_pool: number
 }
 
+export interface PlayerHorseNFT {
+  id: number
+  name: string
+  speed: number
+  endurance: number
+  terrain_type: number
+  color: string
+  owner: string
+  created_time: number
+}
+
 export async function fetchRaceState(addr: string): Promise<RaceState | null> {
   try {
     const result = await aptos.view({
@@ -121,6 +132,71 @@ export async function fetchBets(addr: string): Promise<Bet[]> {
   }
 }
 
+export async function fetchPlayerHorses(playerAddr: string): Promise<number[]> {
+  try {
+    const result = await aptos.view({
+      payload: {
+        function: `${MODULE_ADDRESS}::${MODULE_NAME}::get_player_horses`,
+        typeArguments: [],
+        functionArguments: [playerAddr],
+      },
+    })
+    
+    const horseIds = result[0] as any[]
+    return horseIds.map(id => Number(id))
+  } catch (error) {
+    console.error('Error fetching player horses:', error)
+    return []
+  }
+}
+
+export async function fetchHorseDetails(ownerAddr: string, horseId: number): Promise<PlayerHorseNFT | null> {
+  try {
+    const result = await aptos.view({
+      payload: {
+        function: `${MODULE_ADDRESS}::${MODULE_NAME}::get_horse_details`,
+        typeArguments: [],
+        functionArguments: [ownerAddr, horseId],
+      },
+    })
+    
+    const [id, name, speed, endurance, terrain_type, color, owner, created_time] = result
+    
+    return {
+      id: Number(id),
+      name: String(name),
+      speed: Number(speed),
+      endurance: Number(endurance),
+      terrain_type: Number(terrain_type),
+      color: String(color),
+      owner: String(owner),
+      created_time: Number(created_time),
+    }
+  } catch (error) {
+    console.error('Error fetching horse details:', error)
+    return null
+  }
+}
+
+export async function fetchPlayerHorsesWithDetails(playerAddr: string): Promise<PlayerHorseNFT[]> {
+  try {
+    const horseIds = await fetchPlayerHorses(playerAddr)
+    const horses: PlayerHorseNFT[] = []
+    
+    for (const horseId of horseIds) {
+      const horse = await fetchHorseDetails(playerAddr, horseId)
+      if (horse) {
+        horses.push(horse)
+      }
+    }
+    
+    return horses
+  } catch (error) {
+    console.error('Error fetching player horses with details:', error)
+    return []
+  }
+}
+
 function buildTransaction(fn: string, args: any[]) {
   return {
     data: {
@@ -136,8 +212,13 @@ export const transactions = {
   createRace: () => buildTransaction('create_race', []),
   joinRace: (raceAddr: string, horseId: number) => 
     buildTransaction('join_race', [raceAddr, horseId]),
+  joinRaceWithNFT: (raceAddr: string, nftHorseId: number) => 
+    buildTransaction('join_race_with_nft', [raceAddr, nftHorseId]),
   placeBet: (raceAddr: string, horseId: number, amount: number) => 
     buildTransaction('place_bet', [raceAddr, horseId, amount]),
   startRace: (raceAddr: string) => buildTransaction('start_race', [raceAddr]),
   advanceRace: (raceAddr: string) => buildTransaction('advance_race', [raceAddr]),
+  mintHorse: (name: string, speed: number, endurance: number, terrainType: number, color: string) => 
+    buildTransaction('mint_horse', [name, speed, endurance, terrainType, color]),
+  initializePlayer: () => buildTransaction('initialize_player', []),
 }

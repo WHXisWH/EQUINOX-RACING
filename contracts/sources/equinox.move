@@ -16,6 +16,27 @@ module equinox_addr::equinox {
         color: String,
     }
 
+    struct HorseNFT has key {
+        id: u64,
+        name: String,
+        speed: u64,
+        endurance: u64,
+        terrain_type: u8,
+        color: String,
+        owner: address,
+        created_time: u64,
+    }
+
+    struct PlayerHorses has key {
+        horses: vector<u64>,
+        next_horse_id: u64,
+    }
+
+    struct GlobalHorseRegistry has key {
+        total_horses: u64,
+        collection_name: String,
+    }
+
     struct RaceTrack has store, drop, copy {
         length: u64,
         weather: u8, // 0: Sunny, 1: Rainy
@@ -70,12 +91,78 @@ module equinox_addr::equinox {
     const E_RACE_FINISHED: u64 = 8;
     const E_NOT_CREATOR: u64 = 9;
     const E_INVALID_BET: u64 = 10;
+    const E_NOT_HORSE_OWNER: u64 = 11;
+    const E_HORSE_NOT_FOUND: u64 = 12;
+    const E_INVALID_HORSE_STATS: u64 = 13;
 
     const STARTING_BALANCE: u64 = 1000;
     const TRACK_LENGTH: u64 = 1000;
     const MAX_PLAYERS: u64 = 6;
     const ENTRY_FEE: u64 = 50;
     const MIN_BET: u64 = 10;
+    const MINT_COST: u64 = 100;
+    const COLLECTION_NAME: vector<u8> = b"Equinox Racing Horses";
+
+    fun init_module(admin: &signer) {
+        let admin_addr = signer::address_of(admin);
+        
+        move_to(admin, GlobalHorseRegistry {
+            total_horses: 0,
+            collection_name: string::utf8(COLLECTION_NAME),
+        });
+    }
+
+    public entry fun initialize_player(player: &signer) {
+        let player_addr = signer::address_of(player);
+        
+        if (!exists<PlayerHorses>(player_addr)) {
+            move_to(player, PlayerHorses {
+                horses: vector::empty<u64>(),
+                next_horse_id: 0,
+            });
+        };
+    }
+
+    public entry fun mint_horse(
+        owner: &signer,
+        name: String,
+        speed: u64,
+        endurance: u64,
+        terrain_type: u8,
+        color: String
+    ) acquires PlayerHorses, GlobalHorseRegistry {
+        let owner_addr = signer::address_of(owner);
+        
+        assert!(speed >= 30 && speed <= 80, E_INVALID_HORSE_STATS);
+        assert!(endurance >= 30 && endurance <= 80, E_INVALID_HORSE_STATS);
+        assert!(terrain_type <= 2, E_INVALID_HORSE_STATS);
+        
+        initialize_player(owner);
+        
+        let player_horses = borrow_global_mut<PlayerHorses>(owner_addr);
+        let registry = borrow_global_mut<GlobalHorseRegistry>(@equinox_addr);
+        
+        let horse_id = registry.total_horses;
+        registry.total_horses = registry.total_horses + 1;
+        
+        vector::push_back(&mut player_horses.horses, horse_id);
+        
+        let horse_nft = HorseNFT {
+            id: horse_id,
+            name,
+            speed,
+            endurance,
+            terrain_type,
+            color,
+            owner: owner_addr,
+            created_time: timestamp::now_microseconds(),
+        };
+        
+        let horse_addr = account::create_resource_address(&owner_addr, bcs::to_bytes(&horse_id));
+        let (resource_signer, _cap) = account::create_resource_account(owner, bcs::to_bytes(&horse_id));
+        
+        move_to(&resource_signer, horse_nft);
+    }
 
     public entry fun create_race(creator: &signer) acquires Race {
         let creator_addr = signer::address_of(creator);
@@ -106,7 +193,72 @@ module equinox_addr::equinox {
         move_to(creator, race);
         
         let race_ref = borrow_global_mut<Race>(creator_addr);
-        emit_race_update(race_ref, string::utf8(b"Race created! Waiting for players..."));
+        emit_race_update(race_ref, string::utf8(b"Race created! Players can join with their NFT horses!"));
+    }
+
+    public entry fun join_race_with_nft(
+        player: &signer, 
+        race_addr: address, 
+        nft_horse_id: u64
+    ) acquires Race, PlayerHorses, HorseNFT {
+        let player_addr = signer::address_of(player);
+        let race = borrow_global_mut<Race>(race_addr);
+        
+        assert!(!race.race_started, E_RACE_ALREADY_STARTED);
+        assert!(vector::length(&race.entries) < race.max_players, E_RACE_FULL);
+        
+        assert!(exists<PlayerHorses>(player_addr), E_HORSE_NOT_FOUND);
+        let player_horses = borrow_global<PlayerHorses>(player_addr);
+        
+        let owns_horse = false;
+        let i = 0;
+        let len = vector::length(&player_horses.horses);
+        while (i < len) {
+            if (*vector::borrow(&player_horses.horses, i) == nft_horse_id) {
+                owns_horse = true;
+                break
+            };
+            i = i + 1;
+        };
+        assert!(owns_horse, E_NOT_HORSE_OWNER);
+        
+        let horse_addr = account::create_resource_address(&player_addr, bcs::to_bytes(&nft_horse_id));
+        assert!(exists<HorseNFT>(horse_addr), E_HORSE_NOT_FOUND);
+        let horse_nft = borrow_global<HorseNFT>(horse_addr);
+        
+        let i = 0;
+        let len = vector::length(&race.entries);
+        while (i < len) {
+            let entry = vector::borrow(&race.entries, i);
+            assert!(entry.player_address != player_addr, E_ALREADY_IN_RACE);
+            i = i + 1;
+        };
+        
+        let race_horse = Horse {
+            id: nft_horse_id,
+            name: horse_nft.name,
+            speed: horse_nft.speed,
+            endurance: horse_nft.endurance,
+            terrain_type: horse_nft.terrain_type,
+            color: horse_nft.color,
+        };
+        
+        vector::push_back(&mut race.horses, race_horse);
+        let horse_index = vector::length(&race.horses) - 1;
+        
+        vector::push_back(&mut race.entries, RaceEntry {
+            horse_id: horse_index,
+            player_address: player_addr,
+            position: 0,
+            energy: horse_nft.endurance,
+            is_finished: false,
+            finish_time: 0,
+            final_rank: 0,
+        });
+        
+        let msg = string::utf8(b"Player joined with NFT horse: ");
+        string::append(&mut msg, horse_nft.name);
+        emit_race_update(race, msg);
     }
 
     public entry fun join_race(player: &signer, race_addr: address, horse_id: u64) acquires Race {
@@ -410,5 +562,38 @@ module equinox_addr::equinox {
     public fun get_bets(race_addr: address): vector<Bet> acquires Race {
         let race = borrow_global<Race>(race_addr);
         *&race.bets
+    }
+
+    #[view]
+    public fun get_player_horses(player_addr: address): vector<u64> acquires PlayerHorses {
+        if (!exists<PlayerHorses>(player_addr)) {
+            return vector::empty<u64>()
+        };
+        let player_horses = borrow_global<PlayerHorses>(player_addr);
+        *&player_horses.horses
+    }
+
+    #[view]
+    public fun get_horse_details(owner_addr: address, horse_id: u64): (
+        u64, String, u64, u64, u8, String, address, u64
+    ) acquires HorseNFT {
+        let horse_addr = account::create_resource_address(&owner_addr, bcs::to_bytes(&horse_id));
+        let horse = borrow_global<HorseNFT>(horse_addr);
+        (
+            horse.id,
+            horse.name,
+            horse.speed,
+            horse.endurance,
+            horse.terrain_type,
+            horse.color,
+            horse.owner,
+            horse.created_time
+        )
+    }
+
+    #[view]
+    public fun get_total_horses(): u64 acquires GlobalHorseRegistry {
+        let registry = borrow_global<GlobalHorseRegistry>(@equinox_addr);
+        registry.total_horses
     }
 }

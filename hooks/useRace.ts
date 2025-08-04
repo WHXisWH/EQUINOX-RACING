@@ -68,6 +68,11 @@ export function useRace(raceAddress: string | null) {
     if (!raceAddress) return null;
     return handleTransaction(transactions.joinRace(raceAddress, horseId));
   };
+  
+  const joinRaceWithNFT = (nftHorseId: number) => {
+    if (!raceAddress) return null;
+    return handleTransaction(transactions.joinRaceWithNFT(raceAddress, nftHorseId));
+  };
   const placeBet = (horseId: number, amount: number) => {
     if (!raceAddress) return null;
     return handleTransaction(transactions.placeBet(raceAddress, horseId, amount));
@@ -94,6 +99,7 @@ export function useRace(raceAddress: string | null) {
     lastMessage,
     createRace,
     joinRace,
+    joinRaceWithNFT,
     placeBet,
     startRace,
     advanceRace,
