@@ -1,6 +1,6 @@
 [package]
-name = "Equinox"
-version = "0.0.1"
+name = "EquinoxV2"
+version = "0.0.2"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "mainnet" }

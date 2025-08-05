@@ -29,3 +29,16 @@ pnpm-debug.log*
 
 # Aptos CLI state
 .aptos/
+
+# Move 合约构建文件
+/contracts/build/
+/contracts/.aptos/
+
+# Aptos CLI 相关文件
+.aptos/
+*.yaml
+!Move.toml
+
+# 编译产物
+/contracts/doc/
+/contracts/abis/
