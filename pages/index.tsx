@@ -49,61 +49,6 @@ export default function Home() {
   const [lastMessage, setLastMessage] = useState<string>('');
   const [rateLimited, setRateLimited] = useState<boolean>(false);
 
-  const refreshLobbyData = useCallback(async () => {
-    try {
-      const [races, quickMatch, history] = await Promise.all([
-        fetchActiveRaces(),
-        fetchQuickMatchStatus(),
-        fetchRaceHistory(10),
-      ]);
-      setActiveRaces(races);
-      setQuickMatchStatus(quickMatch);
-      setRaceHistory(history);
-      setError(null);
-      setRateLimited(false);
-    } catch (e: any) {
-      console.error('Error refreshing lobby data:', e);
-      if (e?.message?.includes('Rate limit')) {
-        setError('API rate limit reached. Reducing refresh frequency...');
-        setRateLimited(true);
-        setTimeout(() => setRateLimited(false), 60000);
-      }
-    }
-  }, []);
-
-  const refreshRaceData = useCallback(async () => {
-    if (!currentRaceId) return;
-    try {
-      const state = await fetchRaceState(currentRaceId);
-      setRaceState(state);
-      setError(null);
-      setRateLimited(false);
-    } catch (e: any) {
-      console.error('Error refreshing race data:', e);
-      if (e?.message?.includes('Rate limit')) {
-        setError('API rate limit reached. Reducing refresh frequency...');
-        setRateLimited(true);
-        setTimeout(() => setRateLimited(false), 60000);
-      }
-    }
-  }, [currentRaceId]);
-
-  useEffect(() => {
-    refreshLobbyData();
-    const intervalTime = rateLimited ? 30000 : 15000;
-    const interval = setInterval(refreshLobbyData, intervalTime);
-    return () => clearInterval(interval);
-  }, [rateLimited, refreshLobbyData]);
-
-  useEffect(() => {
-    if (currentRaceId) {
-      refreshRaceData();
-      const intervalTime = rateLimited ? 20000 : 8000;
-      const interval = setInterval(refreshRaceData, intervalTime);
-      return () => clearInterval(interval);
-    }
-  }, [currentRaceId, rateLimited, refreshRaceData]);
-
   const handleTransaction = async (payload: any, successMessage?: string) => {
     if (!account) {
       setError("Please connect your wallet.");
@@ -117,9 +62,12 @@ export default function Home() {
       if (successMessage) {
         setLastMessage(successMessage);
       }
-      await refreshLobbyData();
+      // Manually trigger a refresh after a transaction
       if (currentRaceId) {
-        await refreshRaceData();
+        await fetchRaceState(currentRaceId).then(setRaceState);
+      } else {
+        await fetchActiveRaces().then(setActiveRaces);
+        await fetchQuickMatchStatus().then(setQuickMatchStatus);
       }
       return response.hash;
     } catch (e: any) {
@@ -130,6 +78,64 @@ export default function Home() {
     }
   };
 
+  // Centralized data fetching and auto-advance logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    const refreshLobbyData = async () => {
+      try {
+        const [races, quickMatch, history] = await Promise.all([
+          fetchActiveRaces(),
+          fetchQuickMatchStatus(),
+          fetchRaceHistory(10),
+        ]);
+        setActiveRaces(races);
+        setQuickMatchStatus(quickMatch);
+        setRaceHistory(history);
+        setRateLimited(false);
+        setError(null);
+      } catch (e: any) {
+        if (e.message.includes('Rate limit')) {
+          setRateLimited(true);
+        }
+        console.error('Error refreshing lobby data:', e);
+      }
+    };
+
+    const refreshRaceData = async () => {
+      if (!currentRaceId) return;
+      try {
+        const state = await fetchRaceState(currentRaceId);
+        setRaceState(state);
+
+        // Auto-advance logic moved here
+        if (state?.race_started && !state?.race_finished) {
+           handleAdvanceRace();
+        }
+        
+        setRateLimited(false);
+        setError(null);
+      } catch (e: any) {
+        if (e.message.includes('Rate limit')) {
+          setRateLimited(true);
+        }
+        console.error('Error refreshing race data:', e);
+      }
+    };
+
+    if (activeTab === 'race' && currentRaceId) {
+      refreshRaceData(); // Initial fetch
+      const intervalTime = rateLimited ? 20000 : 8000;
+      interval = setInterval(refreshRaceData, intervalTime);
+    } else {
+      refreshLobbyData(); // Initial fetch
+      const intervalTime = rateLimited ? 30000 : 15000;
+      interval = setInterval(refreshLobbyData, intervalTime);
+    }
+
+    return () => clearInterval(interval);
+  }, [activeTab, currentRaceId, rateLimited]);
+
   const handleCreateNormalRace = async () => {
     const txHash = await handleTransaction(
       transactions.createNormalRace(),
@@ -137,9 +143,11 @@ export default function Home() {
     );
     if (txHash) {
       const races = await fetchActiveRaces();
-      const latestRaceId = Math.max(...races);
-      setCurrentRaceId(latestRaceId);
-      setActiveTab('race');
+      if (races.length > 0) {
+        const latestRaceId = Math.max(...races);
+        setCurrentRaceId(latestRaceId);
+        setActiveTab('race');
+      }
     }
   };
 
@@ -152,9 +160,10 @@ export default function Home() {
 
   const handleJoinRace = async (raceId: number) => {
     if (raceMode === 'classic' && selectedHorseId !== null) {
+      const horseName = raceState?.horses[selectedHorseId]?.name || 'selected horse';
       await handleTransaction(
         transactions.joinRaceWithHorse(raceId, selectedHorseId),
-        `Joined race with ${raceState?.horses[selectedHorseId]?.name}!`
+        `Joined race with ${horseName}!`
       );
       setSelectedHorseId(null);
     } else if (raceMode === 'nft' && selectedNFTHorse) {
@@ -168,9 +177,10 @@ export default function Home() {
 
   const handlePlaceBet = async (entryIndex: number, amount: number) => {
     if (!currentRaceId) return;
+    const amountInOctas = Math.round(amount * 100000000);
     await handleTransaction(
-      transactions.placeBet(currentRaceId, entryIndex, amount * 100000000),
-      `Bet placed: ${formatAPT(amount * 100000000)}`
+      transactions.placeBet(currentRaceId, entryIndex, amountInOctas),
+      `Bet placed: ${formatAPT(amountInOctas)}`
     );
   };
 
@@ -185,15 +195,15 @@ export default function Home() {
   const handleExecuteQuickRace = async (raceId: number) => {
     await handleTransaction(
       transactions.executeQuickRace(raceId),
-      "Quick race auto-started! You earned gas reward."
+      "Quick race auto-started! You earned a gas reward."
     );
   };
 
   const handleAdvanceRace = async () => {
-    if (!currentRaceId) return;
+    if (!currentRaceId || loading) return;
     await handleTransaction(
       transactions.advanceRace(currentRaceId),
-      `Round ${(raceState?.current_round || 0) + 1} completed!`
+      `Round ${(raceState?.current_round || 0) + 1} advanced!`
     );
   };
 
@@ -216,7 +226,6 @@ export default function Home() {
 
   const renderLobby = () => (
     <div className="space-y-8">
-      {/* Logo Area */}
       <div className="text-center py-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl text-white">
         <div className="h-20 flex items-center justify-center mb-4">
           <img 
@@ -224,7 +233,6 @@ export default function Home() {
             alt="Equinox Racing Logo"
             className="h-16 w-auto object-contain"
             onError={(e) => {
-              // 如果Logo图片加载失败，显示备用emoji
               e.currentTarget.style.display = 'none';
               e.currentTarget.nextElementSibling?.classList.remove('hidden');
             }}
@@ -235,9 +243,7 @@ export default function Home() {
         <p className="text-xl opacity-90">The Ultimate Blockchain Horse Racing Experience</p>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Quick Match */}
         <div className="bg-white rounded-lg shadow-lg p-6">
           <h2 className="text-2xl font-bold mb-4 text-green-600">⚡ Quick Match</h2>
           <p className="text-gray-600 mb-4">
@@ -273,7 +279,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Create Normal Race */}
         <div className="bg-white rounded-lg shadow-lg p-6">
           <h2 className="text-2xl font-bold mb-4 text-blue-600">🏁 Create Race</h2>
           <p className="text-gray-600 mb-4">
@@ -296,7 +301,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Active Races */}
       <div className="bg-white rounded-lg shadow-lg p-6">
         <h2 className="text-2xl font-bold mb-4">🔥 Active Races</h2>
         {activeRaces.length === 0 ? (
@@ -336,7 +340,6 @@ export default function Home() {
 
     return (
       <div className="space-y-6">
-        {/* Race Header */}
         <div className="bg-white rounded-lg shadow-lg p-4">
           <div className="flex justify-between items-center">
             <div>
@@ -360,11 +363,10 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <RaceTrack raceState={raceState} onAdvanceRace={handleAdvanceRace} />
+            <RaceTrack raceState={raceState} />
             
             {raceState && !raceState.race_started && !isPlayerInRace() && (
               <div>
-                {/* Race Mode Toggle */}
                 <div className="mb-6 bg-white rounded-lg shadow-md p-4">
                   <h3 className="text-lg font-bold mb-3">Choose Race Mode</h3>
                   <div className="flex space-x-3">
@@ -413,7 +415,6 @@ export default function Home() {
           </div>
           
           <div className="space-y-6">
-            {/* Race Controls */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-bold mb-4">🏁 Race Controls</h3>
               
@@ -421,7 +422,7 @@ export default function Home() {
                 {raceState && !raceState.race_started && !isPlayerInRace() && (
                   <button
                     onClick={() => handleJoinRace(currentRaceId)}
-                    disabled={loading || raceState.entries.length >= 6}
+                    disabled={loading || (raceState.entries.length >= raceState.horses.length)}
                     className="w-full py-3 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 font-medium"
                   >
                     Join Race 🏇
@@ -451,7 +452,7 @@ export default function Home() {
                 {raceState && raceState.race_finished && (
                   <div className="text-center">
                     <p className="text-lg font-medium text-gray-600 mb-2">🏆 Race Completed!</p>
-                    <p className="text-sm text-gray-500">Prizes distributed automatically</p>
+                    <p className="text-sm text-gray-500">Prizes have been distributed.</p>
                   </div>
                 )}
               </div>
@@ -474,7 +475,7 @@ export default function Home() {
               )}
             </div>
             
-            {raceState && !raceState.race_started && (
+            {raceState && (
               <BettingPanel
                 raceState={raceState}
                 bets={[]}
@@ -496,7 +497,7 @@ export default function Home() {
         <p className="text-gray-500 text-center py-8">No race history yet.</p>
       ) : (
         <div className="space-y-4">
-          {raceHistory.map((record, index) => (
+          {raceHistory.map((record) => (
             <div key={record.race_id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-start">
                 <div>
@@ -532,7 +533,6 @@ export default function Home() {
           </div>
         ) : (
           <div>
-            {/* Tab Navigation */}
             <div className="flex justify-center mb-6">
               <div className="bg-white rounded-lg shadow-md p-1 flex">
                 {(['lobby', 'race', 'stable', 'history'] as TabType[]).map((tab) => (
@@ -556,7 +556,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Tab Content */}
             {activeTab === 'lobby' && renderLobby()}
             {activeTab === 'race' && renderRace()}
             {activeTab === 'stable' && <HorseStable />}
@@ -568,20 +567,26 @@ export default function Home() {
   );
 }
 
-// Race Card Component for Lobby
 function RaceCard({ raceId, onJoin }: { raceId: number; onJoin: () => void }) {
   const [raceState, setRaceState] = useState<RaceState | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    const timeout = setTimeout(() => {
-      if (mounted) {
-        fetchRaceState(raceId).then(setRaceState);
+    let isMounted = true;
+    const fetchState = async () => {
+      try {
+        const state = await fetchRaceState(raceId);
+        if (isMounted) {
+          setRaceState(state);
+        }
+      } catch (error) {
+        console.error(`Failed to fetch state for race ${raceId}`, error);
       }
-    }, Math.random() * 2000);
+    };
+    
+    fetchState();
+
     return () => {
-      mounted = false;
-      clearTimeout(timeout);
+      isMounted = false;
     };
   }, [raceId]);
 

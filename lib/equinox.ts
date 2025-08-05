@@ -1,8 +1,15 @@
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk'
+import { Aptos, AptosConfig, Network, type ClientConfig } from '@aptos-labs/ts-sdk'
+
+const APTOS_API_KEY = process.env.NEXT_PUBLIC_APTOS_API_KEY;
+
+const clientConfig: ClientConfig = {
+  API_KEY: APTOS_API_KEY,
+};
 
 const config = new AptosConfig({
   network: Network.TESTNET,
-  fullnode: 'https://api.testnet.aptoslabs.com/v1',
+  fullnode: `https://api.testnet.aptoslabs.com/v1`,
+  clientConfig,
 })
 
 export const aptos = new Aptos(config)
@@ -162,8 +169,7 @@ export async function fetchRaceState(raceId: number): Promise<RaceState | null> 
     }
   } catch (error: any) {
     console.error('Error fetching race state:', error)
-    const errorStr = error?.message || error?.toString() || '';
-    if (errorStr.includes('429') || errorStr.includes('rate limit') || errorStr.includes('Rate limit')) {
+    if (error.message?.includes('Rate limit')) {
       throw new Error('Rate limit exceeded. Please wait before trying again.')
     }
     return null
@@ -188,8 +194,7 @@ export async function fetchRaceBets(raceId: number): Promise<Bet[]> {
     }))
   } catch (error: any) {
     console.error('Error fetching race bets:', error)
-    const errorStr = error?.message || error?.toString() || '';
-    if (errorStr.includes('429') || errorStr.includes('rate limit') || errorStr.includes('Rate limit')) {
+    if (error.message?.includes('Rate limit')) {
       throw new Error('Rate limit exceeded. Please wait before trying again.')
     }
     return []
@@ -210,8 +215,7 @@ export async function fetchActiveRaces(): Promise<number[]> {
     return raceIds.map(id => Number(id))
   } catch (error: any) {
     console.error('Error fetching active races:', error)
-    const errorStr = error?.message || error?.toString() || '';
-    if (errorStr.includes('429') || errorStr.includes('rate limit') || errorStr.includes('Rate limit')) {
+    if (error.message?.includes('Rate limit')) {
       throw new Error('Rate limit exceeded. Please wait before trying again.')
     }
     return []
@@ -237,8 +241,7 @@ export async function fetchQuickMatchStatus(): Promise<QuickMatchStatus> {
     }
   } catch (error: any) {
     console.error('Error fetching quick match status:', error)
-    const errorStr = error?.message || error?.toString() || '';
-    if (errorStr.includes('429') || errorStr.includes('rate limit') || errorStr.includes('Rate limit')) {
+    if (error.message?.includes('Rate limit')) {
       throw new Error('Rate limit exceeded. Please wait before trying again.')
     }
     return {
@@ -269,8 +272,7 @@ export async function fetchRaceHistory(limit: number = 10): Promise<RaceHistory[
     }))
   } catch (error: any) {
     console.error('Error fetching race history:', error)
-    const errorStr = error?.message || error?.toString() || '';
-    if (errorStr.includes('429') || errorStr.includes('rate limit') || errorStr.includes('Rate limit')) {
+    if (error.message?.includes('Rate limit')) {
       throw new Error('Rate limit exceeded. Please wait before trying again.')
     }
     return []
@@ -440,9 +442,7 @@ export async function fetchSystemConfig() {
 function buildTransaction(fn: string, args: any[]) {
   return {
     data: {
-      type: 'entry_function_payload',
       function: `${MODULE_ADDRESS}::${MODULE_NAME}::${fn}`,
-      typeArguments: [],
       functionArguments: args,
     },
   }

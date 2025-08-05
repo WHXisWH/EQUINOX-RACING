@@ -3,7 +3,6 @@ import { RaceState, Horse, RaceEntry, TERRAIN_NAMES, WEATHER_NAMES } from '@/lib
 
 interface RaceTrackProps {
   raceState: RaceState | null;
-  onAdvanceRace?: () => void;
 }
 
 const HORSE_COLORS: Record<string, string> = {
@@ -17,7 +16,6 @@ const HORSE_COLORS: Record<string, string> = {
 
 const HORSE_EMOJIS = ['🐎', '🏇', '🐴', '🎠'];
 
-// Quick Race Countdown Component
 function QuickRaceCountdown({ bettingEndTime }: { bettingEndTime: number }) {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -58,43 +56,28 @@ function QuickRaceCountdown({ bettingEndTime }: { bettingEndTime: number }) {
   );
 }
 
-export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
+export function RaceTrack({ raceState }: RaceTrackProps) {
   const [animatingHorses, setAnimatingHorses] = useState<Set<number>>(new Set());
   const [currentHorseEmoji, setCurrentHorseEmoji] = useState<Record<number, string>>({});
 
-  // 自动推进比赛
-  useEffect(() => {
-    if (raceState?.race_started && !raceState?.race_finished && onAdvanceRace) {
-      const interval = setInterval(() => {
-        onAdvanceRace();
-      }, 3000); // 每3秒自动推进一轮
-      
-      return () => clearInterval(interval);
-    }
-  }, [raceState?.race_started, raceState?.race_finished, onAdvanceRace]);
-
-  // 马匹移动时的动画效果
   useEffect(() => {
     if (raceState?.race_started && !raceState?.race_finished) {
-      // 触发所有马匹的跑步动画
       const horseIds = raceState.entries.map((_, index) => index);
       setAnimatingHorses(new Set(horseIds));
       
-      // 随机切换马匹表情
       const newEmojis: Record<number, string> = {};
       horseIds.forEach(id => {
         newEmojis[id] = HORSE_EMOJIS[Math.floor(Math.random() * HORSE_EMOJIS.length)];
       });
       setCurrentHorseEmoji(newEmojis);
       
-      // 动画持续2秒
       const timeout = setTimeout(() => {
         setAnimatingHorses(new Set());
       }, 2000);
       
       return () => clearTimeout(timeout);
     }
-  }, [raceState?.current_round]);
+  }, [raceState?.current_round, raceState]);
 
   if (!raceState) {
     return (
@@ -127,41 +110,43 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
         <h2 className="text-2xl font-bold">🏇 Race Track</h2>
         <div className="flex gap-4 text-sm">
           <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded">
-            <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center text-xs">
+            <div className="w-4 h-4 rounded flex items-center justify-center text-xs">
               🌱
             </div>
             <span>{TERRAIN_NAMES[raceState.track.terrain]}</span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded">
-            <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center text-xs">
-              {raceState.track.weather === 0 ? '☀️' : '🌧️'}
+            <div className="w-6 h-6 rounded flex items-center justify-center">
+              <img 
+                src={raceState.track.weather === 0 ? '/images/weather/sunny.webp' : '/images/weather/rainy.webp'} 
+                alt={WEATHER_NAMES[raceState.track.weather]}
+                className="w-full h-full object-contain"
+              />
             </div>
             <span>{WEATHER_NAMES[raceState.track.weather]}</span>
           </div>
         </div>
       </div>
 
-      {/* 自动比赛状态提示 */}
       {raceState.race_started && !raceState.race_finished && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2 text-blue-800">
             <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-            <span className="font-medium">🏁 Race is running automatically...</span>
+            <span className="font-medium">🏁 Race is in progress...</span>
             <div className="ml-auto text-sm">Round {raceState.current_round}</div>
           </div>
         </div>
       )}
 
-      {/* 赛道区域 */}
       <div 
-        className="mb-4 relative bg-cover bg-center rounded-lg overflow-hidden"
+        className="mb-4 relative bg-cover bg-center rounded-lg overflow-hidden border-2 border-gray-300"
         style={{
           backgroundImage: `url(${getTrackBackground()})`,
           backgroundColor: '#f3f4f6',
         }}
       >
-        <div className="bg-gradient-to-r from-green-100/80 to-yellow-100/80 p-4">
-          <div className="flex justify-between text-sm text-gray-700 mb-2">
+        <div className="p-4">
+          <div className="flex justify-between text-sm text-white mb-2" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>
             <span className="font-medium">Start 🏁</span>
             <span className="font-medium">Finish 🏆</span>
           </div>
@@ -179,7 +164,7 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
               return (
                 <div key={index} className="relative">
                   <div className="flex items-center mb-1">
-                    <div className="flex items-center gap-2 w-48">
+                    <div className="flex items-center gap-2 w-48 p-1 bg-black/30 rounded">
                       <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
                         <img 
                           src={getHorseImage(horse)} 
@@ -193,39 +178,37 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
                         <span className="hidden text-lg">{horseEmoji}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-medium">{horse.name}</span>
+                        <span className="text-sm font-medium text-white">{horse.name}</span>
                         {entry.is_nft_horse && (
-                          <span className="ml-1 text-xs bg-purple-100 text-purple-800 px-1 rounded">
+                          <span className="ml-1 text-xs bg-purple-200 text-purple-800 px-1 rounded">
                             NFT
                           </span>
                         )}
                       </div>
                     </div>
                     {isFinished && (
-                      <span className="ml-2 text-xs font-bold text-yellow-600 animate-bounce">
+                      <span className="ml-2 text-xs font-bold text-yellow-300 animate-bounce">
                         #{entry.final_rank} 🏆
                       </span>
                     )}
                   </div>
                   
-                  <div className="relative h-12 bg-white/70 rounded-full overflow-hidden border-2 border-gray-300">
-                    {/* 进度条背景 */}
+                  <div className="relative h-12 rounded-full overflow-hidden">
+                    <div className="absolute inset-0 bg-black/20 rounded-full border-2 border-white/50"></div>
                     <div 
-                      className={`absolute h-full ${HORSE_COLORS[horse.color]} transition-all duration-1000 opacity-30`}
+                      className={`absolute h-full ${HORSE_COLORS[horse.color]} transition-all duration-1000 opacity-60 rounded-full`}
                       style={{ width: `${progress}%` }}
                     />
                     
-                    {/* 跑道标记线 */}
                     <div className="absolute inset-0 flex">
                       {[...Array(10)].map((_, i) => (
                         <div 
                           key={i} 
-                          className="flex-1 border-r border-gray-300/50 last:border-r-0"
+                          className="flex-1 border-r border-white/30 last:border-r-0"
                         />
                       ))}
                     </div>
                     
-                    {/* 马匹位置指示器 */}
                     <div 
                       className={`absolute top-1/2 -translate-y-1/2 transition-all duration-1000 z-10 ${
                         isAnimating ? 'animate-bounce' : ''
@@ -253,19 +236,17 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
                         </span>
                       </div>
                       
-                      {/* 奔跑特效 */}
                       {isAnimating && !isFinished && (
                         <div className="absolute -right-2 top-1/2 -translate-y-1/2">
                           <div className="flex gap-1">
-                            <div className="w-1 h-1 bg-amber-600 rounded-full animate-ping"></div>
-                            <div className="w-1 h-1 bg-amber-600 rounded-full animate-ping" style={{animationDelay: '0.1s'}}></div>
-                            <div className="w-1 h-1 bg-amber-600 rounded-full animate-ping" style={{animationDelay: '0.2s'}}></div>
+                            <div className="w-1 h-1 bg-yellow-300 rounded-full animate-ping"></div>
+                            <div className="w-1 h-1 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.1s'}}></div>
+                            <div className="w-1 h-1 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.2s'}}></div>
                           </div>
                         </div>
                       )}
                     </div>
 
-                    {/* 终点线 */}
                     <div className="absolute right-0 top-0 h-full w-2 bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-400 flex flex-col justify-center">
                       <div className="h-1 bg-red-500 mx-auto w-full"></div>
                       <div className="h-1 bg-white mx-auto w-full"></div>
@@ -273,8 +254,8 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
                     </div>
                   </div>
                   
-                  <div className="flex justify-between mt-1 text-xs text-gray-600">
-                    <span className={`${entry.energy < 30 ? 'text-red-500 font-bold' : ''}`}>
+                  <div className="flex justify-between mt-1 text-xs text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                    <span className={`${entry.energy < 30 ? 'text-red-400 font-bold' : ''}`}>
                       Energy: {entry.energy}%
                     </span>
                     <span>{entry.position}m / {raceState.track.length}m</span>
@@ -286,22 +267,6 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
         </div>
       </div>
 
-      {/* Race Status */}
-      {raceState.race_started && !raceState.race_finished && (
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <p className="font-semibold">
-              Round {raceState.current_round} - Race in Progress! 🏁
-            </p>
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">
-            Next round in 3 seconds... ⏱️
-          </p>
-        </div>
-      )}
-
       {raceState.race_finished && (
         <div className="mt-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg text-center border-2 border-yellow-300">
           <div className="flex items-center justify-center gap-2 mb-2">
@@ -310,7 +275,6 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
             <span className="text-2xl animate-bounce" style={{animationDelay: '0.3s'}}>🏆</span>
           </div>
           
-          {/* Winner Display */}
           {raceState.entries.filter(e => e.final_rank === 1).map(winner => {
             const winnerHorse = getHorseByEntry(winner);
             return winnerHorse ? (
@@ -331,7 +295,6 @@ export function RaceTrack({ raceState, onAdvanceRace }: RaceTrackProps) {
         </div>
       )}
 
-      {/* Betting Window Countdown for Quick Races */}
       {raceState.race_type === 1 && !raceState.race_started && raceState.betting_end_time && (
         <QuickRaceCountdown bettingEndTime={raceState.betting_end_time} />
       )}
