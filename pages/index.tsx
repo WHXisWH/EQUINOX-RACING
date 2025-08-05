@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import dynamic from 'next/dynamic';
 import { 
@@ -108,10 +108,7 @@ export default function Home() {
         const state = await fetchRaceState(currentRaceId);
         setRaceState(state);
 
-        // Auto-advance logic moved here
-        if (state?.race_started && !state?.race_finished) {
-           handleAdvanceRace();
-        }
+        // Auto-advance logic removed - now handled by Python bot
         
         setRateLimited(false);
         setError(null);
@@ -448,6 +445,17 @@ export default function Home() {
                     Execute Quick Race ⚡
                   </button>
                 )}
+
+                {raceState && raceState.race_started && !raceState.race_finished && (
+                  <button
+                    onClick={handleAdvanceRace}
+                    disabled={loading}
+                    className="w-full py-3 px-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-300 font-medium text-sm"
+                    title="Manual advance for testing/backup purposes"
+                  >
+                    🔧 Manual Advance (Debug)
+                  </button>
+                )}
                 
                 {raceState && raceState.race_finished && (
                   <div className="text-center">
@@ -526,10 +534,103 @@ export default function Home() {
       
       <div className="container mx-auto px-4 py-8">
         {!account ? (
-          <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Welcome to Equinox! 🏇</h2>
-            <p className="text-lg mb-6">Connect your wallet to start racing!</p>
-            <div className="text-6xl mb-4">🐎</div>
+          <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+            {/* Background decorative elements */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+              <div className="absolute top-20 left-10 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
+              <div className="absolute bottom-20 right-10 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-2000"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse animation-delay-4000"></div>
+            </div>
+            
+            {/* Floating horse icons */}
+            <div className="absolute top-16 left-16 text-4xl animate-bounce animation-delay-1000 opacity-30">🐎</div>
+            <div className="absolute top-32 right-24 text-3xl animate-bounce animation-delay-2000 opacity-25">🏇</div>
+            <div className="absolute bottom-24 left-32 text-3xl animate-bounce animation-delay-3000 opacity-20">🏆</div>
+            <div className="absolute bottom-16 right-16 text-4xl animate-bounce animation-delay-4000 opacity-30">⚡</div>
+            
+            {/* Main content */}
+            <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
+              {/* Logo section */}
+              <div className="mb-8 flex justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white rounded-full opacity-20 blur-xl scale-110"></div>
+                  <div className="relative bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <img 
+                      src="/images/logo/logo.webp" 
+                      alt="Equinox Racing Logo"
+                      className="h-24 w-auto object-contain mx-auto animate-pulse"
+                      onError={(e: any) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                    <div className="hidden text-8xl opacity-80">🏇</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Title section */}
+              <div className="mb-12">
+                <h1 className="text-6xl md:text-7xl font-bold text-white mb-6 tracking-tight">
+                  <span className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
+                    Equinox
+                  </span>
+                  <br />
+                  <span className="text-white/90">Racing</span>
+                </h1>
+                <p className="text-xl md:text-2xl text-white/80 mb-4 font-light">
+                  The Ultimate Blockchain Horse Racing Experience
+                </p>
+                <div className="flex justify-center items-center space-x-2 text-white/60">
+                  <span className="h-px bg-white/30 w-12"></span>
+                  <span className="text-sm uppercase tracking-widest">Web3 Gaming</span>
+                  <span className="h-px bg-white/30 w-12"></span>
+                </div>
+              </div>
+              
+              {/* Welcome message */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-8">
+                <h2 className="text-3xl font-bold text-white mb-4">Ready to Race? 🏁</h2>
+                <p className="text-lg text-white/80 mb-6 leading-relaxed">
+                  Connect your wallet to enter the thrilling world of blockchain horse racing.
+                  <br />
+                  Compete with players worldwide and win real rewards!
+                </p>
+                
+                {/* Features preview */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-2xl mb-2">⚡</div>
+                    <h3 className="text-white font-semibold mb-1">Quick Match</h3>
+                    <p className="text-white/60 text-sm">Instant racing action</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-2xl mb-2">🎯</div>
+                    <h3 className="text-white font-semibold mb-1">NFT Horses</h3>
+                    <p className="text-white/60 text-sm">Unique racing companions</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-2xl mb-2">💰</div>
+                    <h3 className="text-white font-semibold mb-1">Real Rewards</h3>
+                    <p className="text-white/60 text-sm">Win APT tokens</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Call to action */}
+              <div className="text-white/60 text-sm">
+                <p className="flex items-center justify-center space-x-2">
+                  <span>↑</span>
+                  <span>Connect your wallet above to begin</span>
+                  <span>↑</span>
+                </p>
+              </div>
+            </div>
+            
+            {/* Animated racing track line */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-50">
+              <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
+            </div>
           </div>
         ) : (
           <div>
