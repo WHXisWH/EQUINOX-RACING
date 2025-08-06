@@ -5,7 +5,7 @@ export function WalletConnector() {
   const { connected, account } = useWallet();
 
   return (
-    <div className="absolute top-4 right-4">
+    <div className="absolute top-4 right-4 z-50">
       <div className="flex items-center space-x-4">
         {connected && account && (
           <div className="px-4 py-2 bg-white rounded-lg shadow-md text-sm">

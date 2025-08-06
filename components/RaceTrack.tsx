@@ -152,7 +152,29 @@ export function RaceTrack({ raceState }: RaceTrackProps) {
           </div>
           
           <div className="space-y-3">
-            {raceState.entries.map((entry, index) => {
+            {[...Array(6)].map((_, index) => {
+              const entry = raceState.entries[index];
+              if (!entry) {
+                // Render a placeholder for an empty lane
+                return (
+                  <div key={index} className="relative h-[124px]">
+                    <div className="flex items-center mb-1">
+                      <div className="flex items-center gap-2 w-48 p-1 bg-black/10 rounded">
+                        <div className="w-8 h-8 rounded-full bg-gray-300/50 flex items-center justify-center">
+                          <span className="text-gray-500 text-lg">?</span>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-white/70">Waiting for player...</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="relative h-12 rounded-full overflow-hidden">
+                      <div className="absolute inset-0 bg-black/10 rounded-full border-2 border-white/30"></div>
+                    </div>
+                  </div>
+                );
+              }
+
               const horse = getHorseByEntry(entry);
               if (!horse) return null;
               
