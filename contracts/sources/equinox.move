@@ -504,7 +504,11 @@ module equinox_addr::equinox_v2 {
             
             if (finished_count == total_entries) {
                 race.race_finished = true;
-            };
+            }
+            else if(is_top_three_determined(race))
+            {
+                race.race_finished = true;
+            }
         };
         
         // Check if race finished and handle prize distribution separately
@@ -587,7 +591,18 @@ module equinox_addr::equinox_v2 {
         
         finished_count
     }
-
+    fun is_top_three_determined(race: &mut Race): bool{
+        let i = 0;
+        let len = vector::length(&race.entries);
+        while (i < len) {
+            let entry = vector::borrow(&race.entries, i);
+            if (entry.final_rank == 3) {// Top 3 determined. The race is finished.
+                return true;
+            };
+            i = i + 1;
+        };
+        false
+    }
     fun finish_race(race: &mut Race, game_manager: &mut GlobalGameManager) {
         race.race_finished = true;
         
