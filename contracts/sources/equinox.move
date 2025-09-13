@@ -1,4 +1,4 @@
-module equinox_addr::equinox_v2 {
+module equinox_addr::equinox_v3 {
     use std::signer;
     use std::vector;
     use std::string::{Self, String};
@@ -9,6 +9,7 @@ module equinox_addr::equinox_v2 {
     use aptos_framework::timestamp;
     use aptos_framework::account;
     use aptos_framework::event::{Self, EventHandle};
+    use aptos_framework::randomness;
 
     struct Horse has store, drop, copy {
         id: u64,
@@ -76,6 +77,7 @@ module equinox_addr::equinox_v2 {
         created_time: u64,
         start_time: Option<u64>,
         betting_end_time: Option<u64>,
+        randomness_seed: u64,
     }
 
     struct QuickMatchQueue has store {
@@ -151,7 +153,7 @@ module equinox_addr::equinox_v2 {
     const RACE_TYPE_QUICK: u8 = 1;
 
     fun init_module(admin: &signer) {
-        let (_resource_signer, signer_cap) = account::create_resource_account(admin, b"equinox_racing");
+        let (_resource_signer, signer_cap) = account::create_resource_account(admin, b"equinox_racing_v3");
         
         move_to(admin, GlobalGameManager {
             next_race_id: 1,
@@ -233,7 +235,8 @@ module equinox_addr::equinox_v2 {
                        option::some(owner_addr), string::utf8(b"New horse minted"));
     }
 
-    public entry fun create_normal_race(creator: &signer) acquires GlobalGameManager {
+    #[randomness]
+    entry fun create_normal_race(creator: &signer) acquires GlobalGameManager {
         let creator_addr = signer::address_of(creator);
         
         coin::transfer<AptosCoin>(creator, @equinox_addr, ENTRY_FEE);
@@ -243,7 +246,8 @@ module equinox_addr::equinox_v2 {
         game_manager.next_race_id = game_manager.next_race_id + 1;
         
         let horses = create_default_horses();
-        let track = generate_random_track(race_id);
+        let track = generate_random_track_internal();
+        let randomness_seed = generate_secure_seed(race_id, creator_addr);
         
         let race = Race {
             race_id,
@@ -262,6 +266,7 @@ module equinox_addr::equinox_v2 {
             created_time: timestamp::now_microseconds(),
             start_time: option::none(),
             betting_end_time: option::none(),
+            randomness_seed,
         };
         
         vector::push_back(&mut game_manager.race_storage, race);
@@ -284,20 +289,21 @@ module equinox_addr::equinox_v2 {
         };
         
         if (vector::length(&queue.waiting_players) >= QUICK_MATCH_TRIGGER) {
-            create_quick_match_race(game_manager);
+            create_quick_match_race_internal(game_manager);
         };
         
         emit_game_event(game_manager, string::utf8(b"quick_match_joined"), option::none<u64>(), 
                        option::some(player_addr), string::utf8(b"Player joined quick match"));
     }
 
-    fun create_quick_match_race(game_manager: &mut GlobalGameManager) {
+    fun create_quick_match_race_internal(game_manager: &mut GlobalGameManager) {
         let race_id = game_manager.next_race_id;
         game_manager.next_race_id = game_manager.next_race_id + 1;
         
         let horses = create_default_horses();
-        let track = generate_random_track(race_id);
+        let track = create_default_track(); // Use default track for quick match to avoid randomness
         let current_time = timestamp::now_microseconds();
+        let randomness_seed = generate_secure_seed(race_id, @equinox_addr);
         
         let race = Race {
             race_id,
@@ -316,6 +322,7 @@ module equinox_addr::equinox_v2 {
             created_time: current_time,
             start_time: option::some(current_time + (BETTING_WINDOW_SECONDS * 1000000)),
             betting_end_time: option::some(current_time + (BETTING_WINDOW_SECONDS * 1000000)),
+            randomness_seed,
         };
         
         vector::push_back(&mut game_manager.race_storage, race);
@@ -489,7 +496,8 @@ module equinox_addr::equinox_v2 {
                        option::some(executor_addr), string::utf8(b"Quick race auto-started"));
     }
 
-    public entry fun advance_race(_player: &signer, race_id: u64) acquires GlobalGameManager {
+    #[randomness]
+    entry fun advance_race(_player: &signer, race_id: u64) acquires GlobalGameManager {
         {
             let game_manager = borrow_global_mut<GlobalGameManager>(@equinox_addr);
             let race = find_race_mut(game_manager, race_id);
@@ -499,7 +507,7 @@ module equinox_addr::equinox_v2 {
             
             race.current_round = race.current_round + 1;
             
-            let finished_count = simulate_race_round(race);
+            let finished_count = simulate_race_round_internal(race);
             let total_entries = vector::length(&race.entries);
             
             if (finished_count == total_entries) {
@@ -556,7 +564,7 @@ module equinox_addr::equinox_v2 {
                        option::none<address>(), string::utf8(b"Race round completed"));
     }
 
-    fun simulate_race_round(race: &mut Race): u64 {
+    fun simulate_race_round_internal(race: &mut Race): u64 {
         let finished_count = 0;
         let i = 0;
         let len = vector::length(&race.entries);
@@ -566,8 +574,7 @@ module equinox_addr::equinox_v2 {
             
             if (!entry.is_finished) {
                 let horse = vector::borrow(&race.horses, entry.horse_id);
-                let random_seed = entry.player_address;
-                let distance = calculate_movement(horse, &race.track, entry.energy, random_seed, race.current_round);
+                let distance = calculate_movement_internal(horse, &race.track, entry.energy);
                 
                 entry.position = entry.position + distance;
                 
@@ -591,18 +598,20 @@ module equinox_addr::equinox_v2 {
         
         finished_count
     }
+
     fun is_top_three_determined(race: &mut Race): bool{
         let i = 0;
         let len = vector::length(&race.entries);
         while (i < len) {
             let entry = vector::borrow(&race.entries, i);
             if (entry.final_rank == 3) {// Top 3 determined. The race is finished.
-                return true;
+                return true
             };
             i = i + 1;
         };
         false
     }
+
     fun finish_race(race: &mut Race, game_manager: &mut GlobalGameManager) {
         race.race_finished = true;
         
@@ -716,9 +725,9 @@ module equinox_addr::equinox_v2 {
         });
     }
 
-    fun calculate_movement(horse: &Horse, track: &RaceTrack, energy: u64, seed_addr: address, round: u64): u64 {
+    fun calculate_movement_internal(horse: &Horse, track: &RaceTrack, energy: u64): u64 {
         let base_speed = horse.speed;
-        let random_factor = generate_random(seed_addr, round) % 31;
+        let random_factor = randomness::u64_range(0, 31);
         let terrain_bonus = calculate_terrain_bonus(horse.terrain_type, track.terrain, track.weather);
         let energy_penalty = if (energy < 30) { 15 } else { 0 };
         
@@ -768,25 +777,34 @@ module equinox_addr::equinox_v2 {
         horses
     }
 
-    fun generate_random_track(race_id: u64): RaceTrack {
-        let seed = race_id + timestamp::now_microseconds();
+    fun generate_random_track_internal(): RaceTrack {
+        let weather_random = randomness::u64_range(0, 2);
+        let terrain_random = randomness::u64_range(0, 2);
+        
         RaceTrack {
             length: TRACK_LENGTH,
-            weather: ((seed / 1000) % 2) as u8,
-            terrain: ((seed / 2000) % 2) as u8,
+            weather: weather_random as u8,
+            terrain: terrain_random as u8,
         }
     }
 
-    fun generate_random(addr: address, round: u64): u64 {
-        let addr_bytes = bcs::to_bytes(&addr);
-        let seed = timestamp::now_microseconds() + round;
+    fun create_default_track(): RaceTrack {
+        RaceTrack {
+            length: TRACK_LENGTH,
+            weather: 0, // Default sunny weather
+            terrain: 0, // Default dirt terrain
+        }
+    }
+
+    fun generate_secure_seed(race_id: u64, creator_addr: address): u64 {
+        let seed = race_id + timestamp::now_microseconds() + (bcs::to_bytes(&creator_addr)[0] as u64);
         let i = 0;
-        let len = vector::length(&addr_bytes);
+        let len = vector::length(&bcs::to_bytes(&creator_addr));
         while (i < len) {
-            seed = seed + (*vector::borrow(&addr_bytes, i) as u64);
+            seed = seed + (*vector::borrow(&bcs::to_bytes(&creator_addr), i) as u64);
             i = i + 1;
         };
-        seed % 100
+        seed % 1000000000000000000
     }
 
     fun find_race_mut(game_manager: &mut GlobalGameManager, race_id: u64): &mut Race {

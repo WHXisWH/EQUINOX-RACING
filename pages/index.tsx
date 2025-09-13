@@ -80,47 +80,48 @@ export default function Home() {
     }
   };
 
+  // Centralized data fetching functions
+  const refreshLobbyData = async () => {
+    try {
+      const [races, quickMatch, history] = await Promise.all([
+        fetchActiveRaces(),
+        fetchQuickMatchStatus(),
+        fetchRaceHistory(10),
+      ]);
+      setActiveRaces(races);
+      setQuickMatchStatus(quickMatch);
+      setRaceHistory(history);
+      setRateLimited(false);
+      setError(null);
+    } catch (e: any) {
+      if (e.message.includes('Rate limit')) {
+        setRateLimited(true);
+      }
+      console.error('Error refreshing lobby data:', e);
+    }
+  };
+
+  const refreshRaceData = async () => {
+    if (!currentRaceId) return;
+    try {
+      const state = await fetchRaceState(currentRaceId);
+      setRaceState(state);
+
+      // Auto-advance logic removed - now handled by Python bot
+      
+      setRateLimited(false);
+      setError(null);
+    } catch (e: any) {
+      if (e.message.includes('Rate limit')) {
+        setRateLimited(true);
+      }
+      console.error('Error refreshing race data:', e);
+    }
+  };
+
   // Centralized data fetching and auto-advance logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
-
-    const refreshLobbyData = async () => {
-      try {
-        const [races, quickMatch, history] = await Promise.all([
-          fetchActiveRaces(),
-          fetchQuickMatchStatus(),
-          fetchRaceHistory(10),
-        ]);
-        setActiveRaces(races);
-        setQuickMatchStatus(quickMatch);
-        setRaceHistory(history);
-        setRateLimited(false);
-        setError(null);
-      } catch (e: any) {
-        if (e.message.includes('Rate limit')) {
-          setRateLimited(true);
-        }
-        console.error('Error refreshing lobby data:', e);
-      }
-    };
-
-    const refreshRaceData = async () => {
-      if (!currentRaceId) return;
-      try {
-        const state = await fetchRaceState(currentRaceId);
-        setRaceState(state);
-
-        // Auto-advance logic removed - now handled by Python bot
-        
-        setRateLimited(false);
-        setError(null);
-      } catch (e: any) {
-        if (e.message.includes('Rate limit')) {
-          setRateLimited(true);
-        }
-        console.error('Error refreshing race data:', e);
-      }
-    };
 
     if (activeTab === 'race' && currentRaceId) {
       refreshRaceData(); // Initial fetch
@@ -141,6 +142,8 @@ export default function Home() {
       "Normal race created! Entry fee: 0.1 APT"
     );
     if (txHash) {
+      // Refresh lobby data to show the new race
+      await refreshLobbyData();
       const races = await fetchActiveRaces();
       if (races.length > 0) {
         const latestRaceId = Math.max(...races);
@@ -151,25 +154,37 @@ export default function Home() {
   };
 
   const handleJoinQuickMatch = async () => {
-    await handleTransaction(
+    const txHash = await handleTransaction(
       transactions.joinQuickMatch(),
       "Joined quick match! Entry fee: 0.1 APT"
     );
+    if (txHash) {
+      // Refresh lobby data to show updated quick match status
+      await refreshLobbyData();
+    }
   };
 
   const handleJoinRace = async (raceId: number) => {
     if (raceMode === 'classic' && selectedHorseId !== null) {
       const horseName = raceState?.horses[selectedHorseId]?.name || 'selected horse';
-      await handleTransaction(
+      const txHash = await handleTransaction(
         transactions.joinRaceWithHorse(raceId, selectedHorseId),
         `Joined race with ${horseName}!`
       );
+      if (txHash) {
+        // Refresh race data to show the new entry
+        await refreshRaceData();
+      }
       setSelectedHorseId(null);
     } else if (raceMode === 'nft' && selectedNFTHorse) {
-      await handleTransaction(
+      const txHash = await handleTransaction(
         transactions.joinRaceWithNFT(raceId, selectedNFTHorse.id),
         `Joined race with ${selectedNFTHorse.name}!`
       );
+      if (txHash) {
+        // Refresh race data to show the new entry
+        await refreshRaceData();
+      }
       setSelectedNFTHorse(null);
     }
   };
@@ -177,33 +192,49 @@ export default function Home() {
   const handlePlaceBet = async (entryIndex: number, amount: number) => {
     if (!currentRaceId) return;
     const amountInOctas = Math.round(amount * 100000000);
-    await handleTransaction(
+    const txHash = await handleTransaction(
       transactions.placeBet(currentRaceId, entryIndex, amountInOctas),
       `Bet placed: ${formatAPT(amountInOctas)}`
     );
+    if (txHash) {
+      // Refresh race data to show updated bet pool
+      await refreshRaceData();
+    }
   };
 
   const handleStartRace = async () => {
     if (!currentRaceId) return;
-    await handleTransaction(
+    const txHash = await handleTransaction(
       transactions.startRace(currentRaceId),
       "Race started!"
     );
+    if (txHash) {
+      // Refresh race data to show updated race state
+      await refreshRaceData();
+    }
   };
 
   const handleExecuteQuickRace = async (raceId: number) => {
-    await handleTransaction(
+    const txHash = await handleTransaction(
       transactions.executeQuickRace(raceId),
       "Quick race auto-started! You earned a gas reward."
     );
+    if (txHash) {
+      // Refresh race data to show updated race state
+      await refreshRaceData();
+    }
   };
 
   const handleAdvanceRace = async () => {
     if (!currentRaceId || loading) return;
-    await handleTransaction(
+    const txHash = await handleTransaction(
       transactions.advanceRace(currentRaceId),
       `Round ${(raceState?.current_round || 0) + 1} advanced!`
     );
+          if (txHash) {
+        // Refresh race data to show updated race state
+        await refreshRaceData();
+      }
   };
 
   const isPlayerInRace = () => {

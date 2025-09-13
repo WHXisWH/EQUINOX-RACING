@@ -14,8 +14,8 @@ const config = new AptosConfig({
 
 export const aptos = new Aptos(config)
 
-export const MODULE_ADDRESS = process.env.NEXT_PUBLIC_MODULE_ADDRESS || "0x38cf30ab98f13466c60df462ac3e57b6391d6a3c3f22c34bea4e4f3386eafd96";
-export const MODULE_NAME = 'equinox_v2'
+export const MODULE_ADDRESS = process.env.NEXT_PUBLIC_MODULE_ADDRESS || "0x1b5957414b227d9fedd6015c2b53e648166cc552b6b9747a68c496c5b45086f7";
+export const MODULE_NAME = 'equinox_v3'
 
 export interface Horse {
   id: number
