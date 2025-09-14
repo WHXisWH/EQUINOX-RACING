@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 import json
-from aptos_sdk.async_client import RestClient
+from aptos_sdk.async_client import RestClient, ClientConfig, ApiError
 from aptos_sdk.account import Account
 from aptos_sdk.transactions import EntryFunction, TransactionPayload, TransactionArgument
 from aptos_sdk import bcs
@@ -73,7 +73,9 @@ class EquinoxRaceBot:
         """
         self.private_key = private_key
         self.contract_address = contract_address
-        self.client = RestClient(NODE_URL)
+        api_key = os.getenv("APTOS_API_KEY") or os.getenv("NEXT_PUBLIC_APTOS_API_KEY")
+        client_config = ClientConfig(api_key=api_key)
+        self.client = RestClient(NODE_URL, client_config)
         self.account = Account.load_key(private_key)
         self.last_advance_time: Dict[int, float] = {}
         self._tx_lock = asyncio.Lock()
@@ -107,9 +109,16 @@ class EquinoxRaceBot:
                 norm_args.append(str(a))
             else:
                 norm_args.append(a)
-        content = await self.client.view(function, type_args, norm_args)
         try:
+            content = await self.client.view(function, type_args, norm_args)
             return json.loads(content)
+        except ApiError as e:
+            if getattr(e, 'status_code', None) == 429:
+                logger.error(f"Rate limited on view {function}. Backing off...")
+                await asyncio.sleep(5)
+            else:
+                logger.error(f"View error {function}: {e}")
+            return None
         except Exception as e:
             logger.error(f"Failed to parse view response for {function}: {e}")
             return None
@@ -210,7 +219,11 @@ class EquinoxRaceBot:
             return True
 
         except Exception as e:
-            logger.error(f"Error advancing race {race_id}: {e}")
+            if isinstance(e, ApiError) and getattr(e, 'status_code', None) == 429:
+                logger.error(f"Rate limited while advancing race {race_id}. Backing off...")
+                await asyncio.sleep(5)
+            else:
+                logger.error(f"Error advancing race {race_id}: {e}")
             return False
 
     async def execute_quick_race(self, race_id: int) -> bool:
@@ -233,7 +246,11 @@ class EquinoxRaceBot:
             return True
 
         except Exception as e:
-            logger.error(f"Error executing quick race {race_id}: {e}")
+            if isinstance(e, ApiError) and getattr(e, 'status_code', None) == 429:
+                logger.error(f"Rate limited while executing quick race {race_id}. Backing off...")
+                await asyncio.sleep(5)
+            else:
+                logger.error(f"Error executing quick race {race_id}: {e}")
             return False
 
     async def process_race(self, race_id: int):
